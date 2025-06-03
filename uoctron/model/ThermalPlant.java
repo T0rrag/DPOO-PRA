@@ -6,7 +6,7 @@ public class ThermalPlant extends NuclearPlant {
     private FuelType fuelType;
 
     public ThermalPlant(String name, String type, String city, double latitude, double longitude,
-                        int maxCapacityMW, Duration availability, Duration restartTime,
+                        double maxCapacityMW, Duration availability, Duration restartTime,
                         double stability, String image, FuelType fuelType) {
         super(name, type, city, latitude, longitude, maxCapacityMW, availability, restartTime, stability, image);
         this.fuelType = fuelType;

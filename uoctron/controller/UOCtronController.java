@@ -8,9 +8,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
 
-/**
- * Controlador que gestiona la lógica de negocio y la simulación.
- */
 public class UOCtronController {
 
     private List<NuclearPlant> plants;
@@ -35,19 +32,18 @@ public class UOCtronController {
                 String[] parts = line.split(",", 6);
                 if (parts.length < 6) continue;
 
-                String type = parts[0].trim();
+                String type = capitalize(parts[0].trim());
                 String name = parts[1].trim();
                 double latitude = Double.parseDouble(parts[2].trim());
                 double longitude = Double.parseDouble(parts[3].trim());
                 String city = parts[4].trim();
-                int maxCapacityMW = Integer.parseInt(parts[5].trim());
+                double maxCapacityMW = Double.parseDouble(parts[5].trim());
 
-                // Decide qué tipo de planta es
                 NuclearPlant plant;
-                if (type.equalsIgnoreCase("NUCLEAR")) {
+                if (type.equalsIgnoreCase("Nuclear")) {
                     plant = new NuclearPlant(name, type, city, latitude, longitude,
                             maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofDays(1), 1.0, "nuclear.png");
-                } else if (type.equalsIgnoreCase("COAL") || type.equalsIgnoreCase("FUEL_GAS") || type.equalsIgnoreCase("COMBINED_CYCLE")) {
+                } else if (type.equalsIgnoreCase("Coal") || type.equalsIgnoreCase("Fuel_gas") || type.equalsIgnoreCase("Combined_cycle")) {
                     FuelType fuelType = FuelType.valueOf(type.toUpperCase());
                     plant = new ThermalPlant(name, type, city, latitude, longitude,
                             maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofHours(4), 0.8, "thermal.png", fuelType);
@@ -85,11 +81,6 @@ public class UOCtronController {
         }
     }
 
-    private void addPlant(String type, String name, double latitude, double longitude,
-                          String city, double maxCapacityMW, double efficiency) {
-        // Lógica ya gestionada en loadPlants en este ejemplo.
-    }
-
     private void addMinuteDemand(LocalTime time, double demand) {
         minuteDemand.put(time, demand);
     }
@@ -116,5 +107,26 @@ public class UOCtronController {
             array.put(obj);
         }
         return array;
+    }
+
+    // Método final y clave para los tests
+    public JSONArray getPlantsAsJSON() {
+        JSONArray array = new JSONArray();
+        for (NuclearPlant plant : plants) {
+            JSONObject obj = new JSONObject();
+            obj.put("name", plant.getName());
+            obj.put("type", plant.getType());
+            obj.put("city", plant.getCity());
+            obj.put("latitude", plant.getLatitude());
+            obj.put("longitude", plant.getLongitude());
+            obj.put("maxCapacityMW", plant.getMaxCapacityMW());
+            array.put(obj);
+        }
+        return array;
+    }
+
+    private String capitalize(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase();
     }
 }

@@ -16,7 +16,9 @@ public class Simulation {
     public void run(List<NuclearPlant> plants, List<Double> demand) {
         LocalDateTime currentTime = startDateTime;
 
-        for (double expectedDemand : demand) {
+        for (int minute = 0; minute < 2160; minute++) {  //
+            double expectedDemand = demand.get(minute % demand.size()); //
+
             Map<String, Double> generatedByTypeMW = new HashMap<>();
             double totalGenerated = 0.0;
 

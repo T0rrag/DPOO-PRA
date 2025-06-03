@@ -36,7 +36,6 @@ public class NuclearPlant {
         this.image = image;
     }
 
-    // Implementación de generación de electricidad (concreta)
     public double calculateElectricityGenerated(double demand) {
         return Math.min(maxCapacityMW, demand);
     }
@@ -56,7 +55,6 @@ public class NuclearPlant {
                 "\"icon\": \"" + image + "\" }";
     }
 
-
     private String getAdjustedType() {
         switch (type.toLowerCase()) {
             case "hydro":
@@ -70,9 +68,8 @@ public class NuclearPlant {
         }
     }
 
-    // Getters
     public String getName() { return name; }
-    public String getType() { return type; }
+    public String getType() { return getAdjustedType(); }
     public String getCity() { return city; }
     public double getLatitude() { return latitude; }
     public double getLongitude() { return longitude; }

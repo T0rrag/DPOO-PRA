@@ -38,18 +38,29 @@ public class UOCtronController {
                 double longitude = Double.parseDouble(parts[3].trim());
                 String city = parts[4].trim();
                 double maxCapacityMW = Double.parseDouble(parts[5].trim());
-
+                //COAL, FUEL_GAS, COMBINED_CYCLE, BIOMASS *NOTA*
                 NuclearPlant plant;
-                if (type.equalsIgnoreCase("Nuclear")) {
-                    plant = new NuclearPlant(name, type, city, latitude, longitude,
+                switch (type.toLowerCase()) {
+                    case "nuclear" -> plant = new NuclearPlant(name, type, city, latitude, longitude,
                             maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofDays(1), 1.0, "nuclear.png");
-                } else if (type.equalsIgnoreCase("Coal") || type.equalsIgnoreCase("Fuel_gas") || type.equalsIgnoreCase("Combined_cycle")) {
-                    FuelType fuelType = FuelType.valueOf(type.toUpperCase());
-                    plant = new ThermalPlant(name, type, city, latitude, longitude,
-                            maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofHours(4), 0.8, "thermal.png", fuelType);
-                } else {
-                    plant = new RenewablePlant(name, type, city, latitude, longitude,
-                            maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofMinutes(6), 0.7, "renewable.png");
+                    case "coal" -> plant = new ThermalPlant(name, type, city, latitude, longitude,
+                            maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofHours(8), 0.9, "coal.png", FuelType.COAL);
+                    case "fuel_gas" -> plant = new ThermalPlant(name, type, city, latitude, longitude,
+                            maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofHours(4), 0.6, "fuel_gas.png", FuelType.FUEL_GAS);
+                    case "combined_cycle" -> plant = new ThermalPlant(name, type, city, latitude, longitude,
+                            maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofHours(2), 0.7, "combined_cycle.png", FuelType.COMBINED_CYCLE);
+                    case "biomass" -> plant = new ThermalPlant(name, type, city, latitude, longitude,
+                            maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofHours(3), 0.5, "biomass.png", FuelType.BIOMASS);
+                    case "hydro" -> plant = new RenewablePlant(name, type, city, latitude, longitude,
+                            maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofMinutes(3), 0.8, "hydro.png");
+                    case "solar" -> plant = new RenewablePlant(name, type, city, latitude, longitude,
+                            maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofMinutes(6), 0.1, "solar.png");
+                    case "wind" -> plant = new RenewablePlant(name, type, city, latitude, longitude,
+                            maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofMinutes(6), 0.2, "wind.png");
+                    case "geothermal" -> plant = new RenewablePlant(name, type, city, latitude, longitude,
+                            maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofHours(1), 0.7, "geothermal.png");
+                    default -> plant = new RenewablePlant(name, type, city, latitude, longitude,
+                            maxCapacityMW, java.time.Duration.ZERO, java.time.Duration.ofMinutes(6), 0.7, "default.png");
                 }
 
                 plants.add(plant);
@@ -97,6 +108,8 @@ public class UOCtronController {
 
     public JSONArray getSimulationResults() {
         JSONArray array = new JSONArray();
+        if (currentSimulation == null) return array;
+
         for (MinuteSimulationResult result : currentSimulation.getResults()) {
             JSONObject obj = new JSONObject();
             obj.put("time", result.getTime().toString());
@@ -109,7 +122,6 @@ public class UOCtronController {
         return array;
     }
 
-    // Método final y clave para los tests
     public JSONArray getPlantsAsJSON() {
         JSONArray array = new JSONArray();
         for (NuclearPlant plant : plants) {

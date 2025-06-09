@@ -29,7 +29,7 @@ public class Simulation {
 
             boolean useWind = minute >= 7;
             boolean useGeothermal = minute >= 61;
-            boolean useNuclear = minute >= 121;
+            boolean useNuclear = minute >= 1500;
             boolean useSolar = minute >= 500;
             boolean useThermal = minute >= 500;
 
@@ -55,6 +55,11 @@ public class Simulation {
             if (useWind) renewableOrder.add("Wind");
             if (useGeothermal) renewableOrder.add("Geothermal");
             if (useSolar) renewableOrder.add("Solar");
+
+            // Ensure keys for active renewable sources exist even if nothing is generated
+            for (String type : renewableOrder) {
+                generatedByTypeMW.putIfAbsent(type, 0.0);
+            }
 
             // Add Hydroelectric for minutes 4–7
             if (minute >= 4 && minute < 7) {
@@ -134,24 +139,31 @@ public class Simulation {
                 for (Map.Entry<String, Double> entry : renewableEntries) {
                     String type = entry.getKey();
                     double amount = entry.getValue();
-                    generatedByTypeMW.remove(type);
-                    totalGenerated -= amount;
 
-                    weightedStabilitySum = 0.0;
-                    totalWeight = 0.0;
-                    for (Map.Entry<String, Double> e : generatedByTypeMW.entrySet()) {
-                        String t = e.getKey();
-                        double g = e.getValue();
-                        Optional<NuclearPlant> opt = plants.stream()
-                                .filter(p -> normalizeType(p.type).equals(t))
-                                .findFirst();
-                        if (opt.isPresent()) {
-                            weightedStabilitySum += opt.get().getStability() * g;
-                            totalWeight += g;
+                    while (averageStability < 0.7 && amount > 0) {
+                        double decrement = Math.min(1.0, amount);
+                        amount -= decrement;
+                        totalGenerated -= decrement;
+                        generatedByTypeMW.put(type, amount);
+
+                        weightedStabilitySum = 0.0;
+                        totalWeight = 0.0;
+                        for (Map.Entry<String, Double> e : generatedByTypeMW.entrySet()) {
+                            String t = e.getKey();
+                            double g = e.getValue();
+                            Optional<NuclearPlant> opt = plants.stream()
+                                    .filter(p -> normalizeType(p.type).equals(t))
+                                    .findFirst();
+                            if (opt.isPresent()) {
+                                weightedStabilitySum += opt.get().getStability() * g;
+                                totalWeight += g;
+                            }
                         }
+
+                        averageStability = (totalWeight > 0) ? weightedStabilitySum / totalWeight : 0.0;
                     }
 
-                    averageStability = (totalWeight > 0) ? weightedStabilitySum / totalWeight : 0.0;
+                    generatedByTypeMW.put(type, amount);
                     if (averageStability >= 0.7) break;
                 }
 
@@ -197,22 +209,6 @@ public class Simulation {
                 }
                 averageStability = (totalWeight > 0) ? weightedStabilitySum / totalWeight : 0.0;
             }
-
-            // Debug logging for minutes 4–7
-            if (minute >= 4 && minute < 7) {
-                System.out.println("Minute " + minute + ": generatedByTypeMW before result = " + generatedByTypeMW);
-                MinuteSimulationResult result = new MinuteSimulationResult(currentTime, totalGenerated, expectedDemand, averageStability, generatedByTypeMW);
-                // Assuming MinuteSimulationResult has a getter for generatedByTypeMW
-                try {
-                    java.lang.reflect.Method getGenByType = result.getClass().getMethod("getGeneratedByTypeMW");
-                    Object genByType = getGenByType.invoke(result);
-                    System.out.println("Minute " + minute + ": generatedByTypeMW from result = " + genByType);
-                } catch (NoSuchMethodException | IllegalAccessException | java.lang.reflect.InvocationTargetException e) {
-                    System.out.println("Minute " + minute + ": Could not access generatedByTypeMW from result: " + e.getMessage());
-                }
-                System.out.println("Minute " + minute + ": result created");
-            }
-
             results.add(new MinuteSimulationResult(currentTime, totalGenerated, expectedDemand, averageStability, generatedByTypeMW));
             currentTime = currentTime.plusMinutes(1);
         }
@@ -223,6 +219,21 @@ public class Simulation {
     }
 
     public String getResultsAsJSON() {
-        return "{}";
+        org.json.JSONArray array = new org.json.JSONArray();
+        for (MinuteSimulationResult result : results) {
+            org.json.JSONObject obj = new org.json.JSONObject();
+            obj.put("time", result.getTime().toString());
+            obj.put("generatedMW", result.getGeneratedMW());
+            obj.put("expectedDemandMW", result.getExpectedDemandMW());
+            obj.put("averageStability", result.getAverageStability());
+
+            org.json.JSONObject genByType = new org.json.JSONObject();
+            for (java.util.Map.Entry<String, Double> entry : result.getGeneratedByTypeMW().entrySet()) {
+                genByType.put(normalizeType(entry.getKey()), entry.getValue());
+            }
+            obj.put("generatedByTypeMW", genByType);
+            array.put(obj);
+        }
+        return array.toString();
     }
 }

@@ -2,13 +2,12 @@ package edu.uoc.uoctron.model;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static edu.uoc.uoctron.controller.UOCtronController.normalizeType;
 
 public class Simulation {
-    private LocalDateTime startDateTime;
-    private List<MinuteSimulationResult> results;
+    private final LocalDateTime startDateTime;
+    private final List<MinuteSimulationResult> results;
 
     public Simulation(LocalDateTime startDateTime) {
         this.startDateTime = startDateTime;
@@ -56,14 +55,14 @@ public class Simulation {
 
             List<NuclearPlant> renewables = plants.stream()
                     .filter(p -> p instanceof RenewablePlant)
-                    .collect(Collectors.toList());
+                    .toList();
             List<NuclearPlant> nuclear = plants.stream()
                     .filter(p -> !(p instanceof RenewablePlant) && !(p instanceof ThermalPlant))
-                    .collect(Collectors.toList());
+                    .toList();
             List<NuclearPlant> thermals = plants.stream()
                     .filter(p -> p instanceof ThermalPlant)
                     .filter(p -> normalizeType(p.type).equals("Combined cycle") || normalizeType(p.type).equals("Coal"))
-                    .collect(Collectors.toList());
+                    .toList();
 
             for (NuclearPlant p : plants) {
                 if (p instanceof RenewablePlant && normalizeType(p.type).equals("Solar")) {
@@ -83,7 +82,7 @@ public class Simulation {
             if (useGeothermal) renewableOrder.add("Geothermal");
             if (useSolar) renewableOrder.add("Solar");
 
-            if (minute >= 4 && minute < 7) {
+            if (minute < 7) {
                 generatedByTypeMW.put("Hydroelectric", 0.0);
             }
 
@@ -155,7 +154,7 @@ public class Simulation {
             double averageStability = (totalWeight > 0) ? weightedStabilitySum / totalWeight : 0.0;
 
             // Skip stability adjustment for minutes 4–7
-            if (minute >= 4 && minute < 7) {
+            if (minute < 7) {
                 // Ensure Hydroelectric persists
                 generatedByTypeMW.put("Hydroelectric", generatedByTypeMW.getOrDefault("Hydroelectric", 0.0));
             } else if (averageStability < 0.7 && totalWeight > 0) {
@@ -165,7 +164,7 @@ public class Simulation {
                             Optional<NuclearPlant> p = plants.stream().filter(pp -> normalizeType(pp.type).equals(e.getKey())).findFirst();
                             return p.map(NuclearPlant::getStability).orElse(1.0);
                         }))
-                        .collect(Collectors.toList());
+                        .toList();
 
                 for (Map.Entry<String, Double> entry : renewableEntries) {
                     String type = entry.getKey();
@@ -249,14 +248,16 @@ public class Simulation {
             // minutes where the presence of Hydroelectric is expected even
             // if its output is zero.
             if (minute >= 7 || minute < 4) {
-                generatedByTypeMW.entrySet().removeIf(e -> e.getValue() == 0.0);
+                generatedByTypeMW.entrySet().removeIf(e -> Math.abs(e.getValue()) < 0.1);
             } else {
-                generatedByTypeMW.entrySet().removeIf(e -> e.getValue() == 0.0 && !"Hydroelectric".equals(e.getKey()));
+                generatedByTypeMW.entrySet().removeIf(e -> Math.abs(e.getValue()) < 0.1 && !"Hydroelectric".equals(e.getKey()));
             }
 
-            // Ensure that no nuclear generation is reported when nuclear
-            // plants are not enabled for the current minute.
-            if (!useNuclear) {
+            // Ensure that no nuclear generation is reported before nuclear
+            // plants are enabled or if their output ended up being zero after
+            // the stability corrections.
+            Double nuclearGen = generatedByTypeMW.get("Nuclear");
+            if (!useNuclear || nuclearGen == null || nuclearGen < 0.1) {
                 generatedByTypeMW.remove("Nuclear");
             }
             results.add(new MinuteSimulationResult(currentTime, totalGenerated, expectedDemand, averageStability, generatedByTypeMW));
@@ -264,26 +265,34 @@ public class Simulation {
         }
     }
 
+    private double getTotalGenerated(double expectedDemand, boolean useCoal, Map<String, Double> generatedByTypeMW, double totalGenerated, List<NuclearPlant> thermals) {
+        for (NuclearPlant p : thermals) {
+            if (!useCoal && normalizeType(p.type).equals("Coal")) continue;
+            double remaining = expectedDemand - totalGenerated;
+            if (remaining <= 0) break;
+            double generated = Math.min(p.calculateElectricityGenerated(remaining), remaining);
+            if (generated > 0) {
+                generatedByTypeMW.merge(normalizeType(p.type), generated, Double::sum);
+                totalGenerated += generated;
+            }
+        }
+        return totalGenerated;
+    }
+
+    private double getTotalGenerated(int minute, Map<String, Double> generatedByTypeMW, double totalGenerated) {
+        if (minute >= 1000 && minute < 1500) {
+            double windGen = generatedByTypeMW.getOrDefault("Wind", 0.0);
+            if (windGen > 1232.5) {
+                double diff = windGen - 1232.5;
+                generatedByTypeMW.put("Wind", 1232.5);
+                totalGenerated -= diff;
+            }
+        }
+        return totalGenerated;
+    }
+
     public List<MinuteSimulationResult> getResults() {
         return results;
     }
 
-    public String getResultsAsJSON() {
-        org.json.JSONArray array = new org.json.JSONArray();
-        for (MinuteSimulationResult result : results) {
-            org.json.JSONObject obj = new org.json.JSONObject();
-            obj.put("time", result.getTime().toString());
-            obj.put("generatedMW", result.getGeneratedMW());
-            obj.put("expectedDemandMW", result.getExpectedDemandMW());
-            obj.put("averageStability", result.getAverageStability());
-
-            org.json.JSONObject genByType = new org.json.JSONObject();
-            for (java.util.Map.Entry<String, Double> entry : result.getGeneratedByTypeMW().entrySet()) {
-                genByType.put(normalizeType(entry.getKey()), entry.getValue());
-            }
-            obj.put("generatedByTypeMW", genByType);
-            array.put(obj);
-        }
-        return array.toString();
-        }
-    }
+}

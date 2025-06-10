@@ -40,7 +40,7 @@ public class Simulation {
 
             boolean useWind = minute >= 7;
             boolean useGeothermal = minute >= 61;
-            boolean useNuclear = minute >= 121;
+            boolean useNuclear = minute >= 1500;
             // Solar generation is only available during daylight hours.
             // Daylight is simulated from minute 500 to minute 950 of each day,
             // repeating for subsequent days. The modulo operation ensures the
